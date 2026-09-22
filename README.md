@@ -1,43 +1,70 @@
-# MiniSOC Security Event Detection System
+# MiniSOC — Security Event Detection & Incident Triage System
 
-MiniSOC is a lightweight cybersecurity monitoring project built in Python.
+MiniSOC is a lightweight Security Operations Center (SOC) project built in Python.
 
-It ingests security event logs, detects suspicious authentication activity, and stores both raw events and generated alerts in a PostgreSQL database hosted on Supabase.
+It ingests authentication logs, detects suspicious activity using rule-based detection logic, and stores both raw security events and generated alerts in PostgreSQL hosted on Supabase.
 
-## Current Features
+The project is designed to demonstrate core SOC concepts such as event ingestion, detection engineering, time-window correlation, alert generation, database persistence, and automated testing.
 
-- Security log ingestion from CSV
-- Brute-force login detection
-- Password-spray detection
-- Possible account compromise detection
-- Time-window based brute-force detection
-- Structured security alerts
-- Raw event storage in PostgreSQL
-- Alert storage in PostgreSQL
+---
+
+## Features
+
+- CSV-based security log ingestion
+- PostgreSQL event storage using Supabase
+- Structured security alert generation
 - Duplicate event prevention
 - Duplicate alert prevention
-- Supabase-hosted PostgreSQL database
-- Environment-variable based credential management
+- Time-window based detection logic
+- Automated detection testing with pytest
+- Environment-variable based secret management
+
+---
 
 ## Detection Rules
 
 ### AUTH-001 — Brute Force
 
-Detects multiple failed login attempts against the same account from the same source IP within a defined time window.
+Detects repeated failed login attempts against the same account from the same source IP within a defined time window.
 
-Severity: `HIGH`
+**Default logic:**
+
+- Same source IP
+- Same username
+- 5 or more failed login attempts
+- Within 10 minutes
+- Severity: HIGH
+
+---
 
 ### AUTH-002 — Possible Account Compromise
 
-Detects repeated failed login attempts followed by a successful login for the same user and source IP.
+Detects multiple failed authentication attempts followed by a successful login.
 
-Severity: `CRITICAL`
+**Default logic:**
+
+- Same source IP
+- Same username
+- 5 or more failed attempts
+- Followed by successful authentication
+- Within 10 minutes
+- Severity: CRITICAL
+
+---
 
 ### AUTH-003 — Password Spray
 
-Detects a single source IP attempting failed logins against multiple different user accounts.
+Detects failed authentication attempts against multiple different accounts from the same source IP.
 
-Severity: `HIGH`
+**Default logic:**
+
+- Same source IP
+- 3 or more unique usernames
+- Failed authentication attempts
+- Within 10 minutes
+- Severity: HIGH
+
+---
 
 ## Architecture
 
@@ -45,24 +72,29 @@ Severity: `HIGH`
 security_logs.csv
         |
         v
-      Pandas
+   Pandas Parser
         |
-        v
- Detection Engine
-   |     |      |
-   |     |      |
-AUTH-001 AUTH-002 AUTH-003
-        |
-        v
- Structured Alerts
-        |
-        v
-      db.py
-        |
-        v
-     psycopg
-        |
-        v
-Supabase PostgreSQL
-   |           |
- events      alerts
+        +----------------------+
+        |                      |
+        v                      v
+ Raw Event Storage       Detection Engine
+        |                 |     |     |
+        |              AUTH-001 | AUTH-003
+        |                       |
+        |                    AUTH-002
+        |                       |
+        |                       v
+        |                Structured Alerts
+        |                       |
+        +-----------+-----------+
+                    |
+                    v
+                  db.py
+                    |
+                    v
+                 psycopg
+                    |
+                    v
+           Supabase PostgreSQL
+              |           |
+            events       alerts
