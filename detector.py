@@ -2,6 +2,13 @@ import pandas as pd
 
 from db import save_alerts, save_events
 
+VALID_SEVERITIES = {
+    "LOW",
+    "MEDIUM",
+    "HIGH",
+    "CRITICAL",
+}
+
 LOG_FILE = "data/security_logs.csv"
 
 def load_logs():
@@ -176,7 +183,20 @@ def detect_password_spray(logs, user_threshold=3, window_minutes=10):
 	) 
 	
 
-def create_alert(rule_id, alert_type, severity, source_ip, username, description):
+def create_alert(
+		rule_id,
+		alert_type,
+		severity,
+		source_ip,
+		username,
+		description
+):
+	if severity not in VALID_SEVERITIES:
+		raise ValueError(
+			f"Invalid severity '{severity}'. "
+			f"Expectec one of {VALID_SEVERITIES}"
+		)
+	
 	return {
 		"rule_id": rule_id,
 		"alert_type": alert_type,
@@ -185,6 +205,7 @@ def create_alert(rule_id, alert_type, severity, source_ip, username, description
 		"username": username,
 		"description": description
 	}
+
 def generate_brute_force_alerts(logs):
 	detections = detect_brute_force(logs)
 

@@ -1,6 +1,8 @@
 import pandas as pd
+import pytest 
 
 from detector import (
+    create_alert,
     detect_brute_force,
     detect_password_spray,
     detect_possible_compromise,
@@ -102,3 +104,14 @@ def test_compromise_shuld_not_trigger_with_four_failures():
     result = detect_possible_compromise(logs)
 
     assert result.empty
+
+def test_invalid_alert_severity_should_fail():
+    with pytest.raises(ValueError):
+        create_alert(
+            "TEST-001",
+            "Test Alert",
+            "INVALID",
+            "192.168.1.1",
+            "testuser",
+            "Test alert",
+        )
