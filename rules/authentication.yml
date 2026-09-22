@@ -1,0 +1,19 @@
+rules:
+
+  AUTH-001:
+    name: Brute Force
+    severity: HIGH
+    threshold: 5
+    window_minutes: 10
+
+  AUTH-002:
+    name: Possible Account Compromise
+    severity: CRITICAL
+    threshold: 5
+    window_minutes: 10
+
+  AUTH-003:
+    name: Password Spray
+    severity: HIGH
+    threshold: 3
+    window_minutes: 10

@@ -2,12 +2,16 @@ import pandas as pd
 
 from db import save_alerts, save_events
 
+from rule_loader import load_rules
+
 VALID_SEVERITIES = {
     "LOW",
     "MEDIUM",
     "HIGH",
     "CRITICAL",
 }
+
+RULES = load_rules() 
 
 LOG_FILE = "data/security_logs.csv"
 
@@ -207,24 +211,33 @@ def create_alert(
 	}
 
 def generate_brute_force_alerts(logs):
-	detections = detect_brute_force(logs)
+
+	rule = RULES["AUTH-001"]
+
+	detections = detect_brute_force(
+		logs,
+		threshold=rule["threshold"],
+		window_minutes=rule["window_minutes"]
+	)
 
 	alerts = []
 
 	for _, row in detections.iterrows():
 
-		alert = create_alert(
-			rule_id="AUTH-001",
-			alert_type="Brute Force",
-			severity="HIGH",
-			source_ip=row["source_ip"],
-			username=row["username"],
-			description=f'{row["failed_attempts"]} failed login attempts detected.'
+		alerts.append(
+			create_alert(
+				"AUTH-001",
+				rule["name"],
+				rule["severity"],
+				row["source_ip"],
+				row["username"],
+				f'{row["failed_attempts"]} failed login attempts detected.'
+			)
 		)
 
-		alerts.append(alert)
 
 	return alerts
+
 def generate_compromise_alerts(logs):
 	detections = detect_possible_compromise(logs)
 
@@ -327,7 +340,7 @@ def main():
 		print("No password spraying detected.")
 
 	else:
-		print("WARNING: Possible password sprayng detected!")
+		print("WARNING: Possible password spraying detected!")
 		print(spray_alerts)
 	
 	alerts = generate_all_alerts(logs)
