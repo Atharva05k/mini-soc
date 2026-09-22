@@ -15,90 +15,110 @@ def load_logs():
 
 def detect_brute_force(logs, threshold=5, window_minutes=10):
 
-	failed_logins = logs[
-		(logs["event_type"]== "login") &
-		(logs["status"] == "failed")
-	].copy()
+    failed_logins = logs[
+        (logs["event_type"] == "login") &
+        (logs["status"] == "failed")
+    ].copy()
+
+    detections = []
+
+    for (source_ip, username), group in failed_logins.groupby(
+        ["source_ip", "username"]
+    ):
+
+        group = group.sort_values("timestamp")
+
+        timestamps = group["timestamp"].tolist()
+
+        left = 0
+
+        for right in range(len(timestamps)):
+
+            while (
+                timestamps[right] - timestamps[left]
+                > pd.Timedelta(minutes=window_minutes)
+            ):
+                left += 1
+
+            failed_attempts = right - left + 1
+
+            if failed_attempts >= threshold:
+
+                detections.append({
+                    "source_ip": source_ip,
+                    "username": username,
+                    "failed_attempts": failed_attempts,
+                    "window_start": timestamps[left],
+                    "window_end": timestamps[right]
+                })
+
+                break
+
+    return pd.DataFrame(
+        detections,
+        columns=[
+            "source_ip",
+            "username",
+            "failed_attempts",
+            "window_start",
+            "window_end"
+        ]
+    )
+		
+
+def detect_possible_compromise(logs, threshold=5, window_minutes=10):
+
+	login_events = logs[
+        logs["event_type"] == "login"
+    ].copy()
 
 	detections = []
 
-	for (source_ip, username), group in failed_logins.groupby(
+	for (source_ip, username), group in login_events.groupby(
 		["source_ip", "username"]
 	):
-		group = group.sort_values("timestamp")
-
-		timestamps = group["timestamp"].tolist()
-
-		left = 0
-
-		for right in range(len(timestamps)):
-
-			while (
-				timestamps[right] - timestamps[left]
-				> pd.Timedelta(minutes=window_minutes)
-			):
-				left += 1
-
-			failed_attempts = right - left + 1
-
-			if failed_attempts >= threshold:
-
-				detections.append({
-					"source_ip": source_ip,
-					"username": username,
-					"failed_attempts": failed_attempts,
-					"window_start": timestamps[left],
-					"window_end": timestamps[right]
-				})
-
-				break
-
-			return pd.DataFrame(
-				detections,
-				columns=[
-					"source-ip",
-					"username",
-					"failed_attempts",
-					"window_start",
-					"window_end"
-				]
-			)
-		
-
-def detect_possible_compromise(logs, threshold=5):
-	alerts = []
-
-	grouped_logs = logs.groupby(["source_ip", "username"])
-
-	for (source_ip, username), group in grouped_logs:
 
 		group = group.sort_values("timestamp")
-
-		failed_count = 0
 
 		for _, event in group.iterrows():
 
-			if event["event_type"] != "login":
+			if event["status"] != "success":
 				continue
 
-			if event["status"] == "failed":
-				failed_count += 1
+			success_time = event["timestamp"]
 
-			elif event["status"] == "success":
+			window_start = success_time - pd.Timedelta(
+				minutes = window_minutes
+			)
 
-				if failed_count >= threshold:
+			failures = group[
+				(group["status"] == "failed") &
+				(group["timestamp"] >= window_start) &\
+				(group["timestamp"] < success_time)
+			]
 
-					alerts.append({
+			if len(failures) >= threshold:
+
+				detections.append({
 						"source_ip": source_ip,
 						"username": username,
-						"failed_attempts": failed_count,
-						"successful_login": event["timestamp"],
-						"severity": "HIGH"
+						"failed_attempts": len(failures),
+						"window_start": failures["timestamp"].min(),
+						"success_time": success_time
 					})
 
-				failed_count = 0
+				break
 
-		return pd.DataFrame(alerts)
+		return pd.DataFrame(
+			detections,
+			columns=[
+				"source_ip",
+				"username",
+				"failed_attempts",
+				"window_start",
+				"success_time"
+			]
+		)
 
 def detect_password_spray(logs, user_threshold=3, window_minutes=10):
 
